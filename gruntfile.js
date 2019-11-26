@@ -1,4 +1,4 @@
-module.exports = function(grunt) {
+module.exports = grunt => {
     grunt.initConfig({
         nodeunit: {
             all: ['test/**/*.test.js']

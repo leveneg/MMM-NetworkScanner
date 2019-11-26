@@ -26,8 +26,27 @@
     "ping": "^0.1.10"
   },
   "devDependencies": {
-      "grunt": "latest",
-      "grunt-contrib-jshint": "latest",
-      "grunt-contrib-nodeunit": "latest"
+    "eslint": "^6.1.0",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-config-prettier": "^6.7.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-prettier": "^3.1.1",
+    "grunt": "latest",
+    "grunt-contrib-jshint": "latest",
+    "grunt-contrib-nodeunit": "latest",
+    "husky": "^3.1.0",
+    "lint-staged": "^9.4.3",
+    "prettier": "1.19.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,css,json,md}": [
+      "prettier --write",
+      "git add"
+    ]
   }
 }

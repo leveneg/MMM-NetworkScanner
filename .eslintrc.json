@@ -1,0 +1,10 @@
+{
+  "extends": ["airbnb-base", "plugin:prettier/recommended"],
+  "parserOptions": {
+    "ecmaVersion": 10
+  },
+  "rules": {
+    "no-continue": "off",
+    "no-console": "off"
+  }
+}
