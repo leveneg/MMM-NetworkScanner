@@ -122,7 +122,7 @@ module.exports = NodeHelper.create({
             if (device.hasOwnProperty("macAddress")) {
                 if (macAddress.toUpperCase() === device.macAddress.toUpperCase()){
                     this.log(this.name + " found device by MAC Address", device);
-                    return device;
+                    return { ...device, macAddress: device.macAddress.toUpperCase() };
                 }
             }
         }

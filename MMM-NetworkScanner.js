@@ -64,7 +64,7 @@ Module.register("MMM-NetworkScanner", {
 		if (this.config.debug) Log.info(this.name + " received a notification: " + notification, payload);
 
 		var self = this;
-		var getKeyedObject = (objects = [], key) => objects.reduce(
+		var getKeyedObject = (objects, key) => objects.reduce(
 			(acc, object) => (Object.assign(acc, {
 				[object[key]]: object
 			})), {}
@@ -81,37 +81,41 @@ Module.register("MMM-NetworkScanner", {
 		if (notification === 'MAC_ADDRESSES') {
 			if (this.config.debug) Log.info(this.name + " MAC_ADDRESSES payload: ", payload);
 
-			var nextState = payload.map(device =>
-				Object.assign(device, {
-					lastSeen: moment()
-				})
-			);
+			var payloadDevices = getKeyedObject(payload, 'macAddress');
+			var combinedDevices = (this.networkDevices || []).concat(this.config.devices);
+			var nextDevices = {};
 
-			if (this.config.showOffline) {
-				var networkDevicesByMac = getKeyedObject(this.networkDevices, 'macAddress');
-				var payloadDevicesByMac = getKeyedObject(nextState, 'macAddress');
+			for (var i=0; i < combinedDevices.length; i++) {
+				var device = { ...combinedDevices[i] };
+				var { lastSeen, macAddress } = device;
 
-				nextState = this.config.devices.map(device => {
-					if (device.macAddress) {
-						var oldDeviceState = networkDevicesByMac[device.macAddress];
-						var payloadDeviceState = payloadDevicesByMac[device.macAddress];
-						var newDeviceState = payloadDeviceState || oldDeviceState || device;
+				if (macAddress in payloadDevices) {
+					device = { ...device, ...payloadDevices[macAddress] };
+					nextDevices[macAddress] = { ...device, lastSeen: moment() };
+					continue;
+				}
 
-						var sinceLastSeen = newDeviceState.lastSeen ?
-							moment().diff(newDeviceState.lastSeen, 'seconds') :
-							null;
-						var isStale = (sinceLastSeen >= this.config.keepAlive);
+				// becuase it's easier than filtering dups from combinedDevices
+				if (macAddress in nextDevices) {
+					continue;
+				}
 
-						newDeviceState.online = (sinceLastSeen != null) && (!isStale);
+				var sinceLastSeen = lastSeen
+					? moment().diff(lastSeen, 'seconds')
+					: Infinity;
 
-						return newDeviceState;
-					} else {
-						return device;
-					}
-				});
+				device.online = (sinceLastSeen <= this.config.keepAlive);
+
+				if (device.online || this.config.showOffline) {
+					nextDevices[macAddress] = device;
+				}
 			}
 
-			this.networkDevices = nextState;
+			if (this.config.showUnknown) {
+				nextDevices = { ...payloadDevices, ...nextDevices };
+			}
+
+			this.networkDevices = Object.values(nextDevices);
 
 			// Sort list by known device names, then unknown device mac addresses
 			if (this.config.sort) {
@@ -162,7 +166,6 @@ Module.register("MMM-NetworkScanner", {
 
 			this.updateDom();
 			return;
-
 		}
 
 	},
@@ -259,6 +262,11 @@ Module.register("MMM-NetworkScanner", {
 				} else {
 					device.name = "Unknown";
 				}
+			}
+
+			// normalize MAC address
+			if (device.hasOwnProperty("macAddress")) {
+				device.macAddress = device.macAddress.toUpperCase();
 			}
 		});
 	},
