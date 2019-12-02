@@ -8,6 +8,7 @@
 
 /* @format prettier */
 /* global config, Log, Module, moment */
+/* eslint-env browser */
 
 Module.register("MMM-NetworkScanner", {
   // Default module config.

@@ -1,3 +1,7 @@
+/**
+ * @prettier
+ */
+
 /* Magic Mirror
  * Node Helper: MMM-NetworkScanner
  *
@@ -5,127 +9,146 @@
  * MIT Licensed.
  */
 
-/* @format prettier */
-
 /* eslint-disable-next-line import/no-extraneous-dependencies */
 const NodeHelper = require("node_helper");
+const os = require("os");
 const ping = require("ping");
 const sudo = require("sudo");
 
 module.exports = NodeHelper.create({
   start() {
-    this.log(`Starting module: ${  this.name}`);
+    this.log(`Starting module: ${this.name}`);
   },
 
   // Override socketNotificationReceived method.
   socketNotificationReceived(notification, payload) {
-    this.log(`${this.name  } received ${  notification}`);
+    this.log(`${this.name} received ${notification}`);
 
     if (notification === "CONFIG") {
       this.config = payload;
+
       return true;
     }
 
     if (notification === "SCAN_NETWORK") {
       this.scanNetworkMAC();
       this.scanNetworkIP();
+
       return true;
     }
 
     return false;
   },
 
-  scanNetworkMAC() {
-    this.log(`${this.name  } is performing arp-scan`);
+  performArpScan(arpMask = "-l") {
+    this.log(`${this.name} performing arp-scan`);
 
-    const self = this;
-    // Target hosts/network supplied in config or entire localnet
-    const arpHosts = this.config.network || '-l';
-    const arp = sudo(['arp-scan', '-q', arpHosts]);
-    let buffer = '';
-    let errstream = '';
-    const discoveredMacAddresses = [];
-    const discoveredDevices = [];
+    return new Promise((resolve, reject) => {
+      let out = "";
+      let err = "";
+      const spawn = sudo(["arp-scan", "-q", arpMask]);
 
-    arp.stdout.on('data', data => {
-      buffer += data;
-    });
+      spawn.stdout.on("data", data => {
+        out += data;
+      });
 
-    arp.stderr.on('data', data => {
-      errstream += data;
-    });
+      spawn.stderr.on("data", data => {
+        err += data;
+      });
 
-    arp.on('error', err => {
-      errstream += err;
-    });
+      spawn.on("error", data => {
+        err += data;
+      });
 
-    arp.on('close', code => {
-      if (code !== 0) {
-        self.log(`${self.name  } received an error running arp-scan: ${  code  } - ${  errstream}`);
-        return;
-      }
-
-      // Parse the ARP-SCAN table response
-      const rows = buffer.split('\n');
-      for (let i = 2; i < rows.length; i+=1) {
-        const cells = rows[i].split('\t').filter(String);
-
-        // Update device status
-        if (cells && cells[1]) {
-          const macAddress = cells[1].toUpperCase();
-          if (macAddress && discoveredMacAddresses.indexOf(macAddress) === -1) {
-            discoveredMacAddresses.push(macAddress);
-            const device = self.findDeviceByMacAddress(macAddress);
-            if (device) {
-              device.online = true;
-              discoveredDevices.push(device);
-            }
-          }
+      spawn.on("close", code => {
+        if (code !== 0) {
+          this.log(`${this.name} encountered error in arp-scan:`);
+          this.log(err);
+          reject(new Error(err));
         }
-      }
 
-      self.log(`${self.name  } arp scan addresses: `, discoveredMacAddresses);
-      self.log(`${self.name  } arp scan devices: `, discoveredDevices);
-      self.sendSocketNotification("MAC_ADDRESSES", discoveredDevices);
+        resolve(out);
+      });
     });
   },
 
-  scanNetworkIP() {
+  parseArpScan(buffer) {
+    const rows = buffer.split(os.EOL);
+    const macs = new Set();
+
+    for (let i = 2; i < rows.length; i += 1) {
+      const cells = rows[i].split("\t").filter(String);
+      // eslint-disable-next-line no-unused-vars, prefer-const
+      let [ipAddr, macAddr, ...rest] = cells;
+
+      if (!ipAddr || !macAddr) {
+        continue;
+      }
+
+      macAddr = macAddr.toUpperCase();
+      macs.add(macAddr);
+    }
+
+    return Array.from(macs);
+  },
+
+  async scanNetworkMAC() {
+    const arp = await this.performArpScan(this.config.network);
+    const arpMacs = this.parseArpScan(arp);
+    const discovered = [];
+
+    for (let i = 0; i < arpMacs.length; i += 1) {
+      const macAddr = arpMacs[i];
+      const device = this.findDeviceByMacAddress(macAddr);
+
+      if (device) {
+        device.online = true;
+        discovered.push(device);
+      }
+    }
+
+    this.log(`${this.name} arp scan addresses: `, arpMacs);
+    this.log(`${this.name} arp scan devices: `, discovered);
+    this.sendSocketNotification("MAC_ADDRESSES", discovered);
+  },
+
+  performPing(ipAddr) {
+    return new Promise(resolve => {
+      ping.sys.probe(ipAddr, isAlive => {
+        this.log(`${this.name} ping result: `, [ipAddr, isAlive]);
+        resolve(isAlive);
+      });
+    });
+  },
+
+  async scanNetworkIP() {
     if (!this.config.devices) {
       return;
     }
 
-    this.log(`${this.name  } is performing ip address scan`);
+    for (let i = 0; i < this.config.devices.length; i += 1) {
+      const device = this.config.devices[i];
 
-    const discoveredDevices = [];
-    const self = this;
-    this.config.devices.forEach(device => {
-      self.log(`${self.name  } is checking device: `, device.name);
-
-      if ("ipAddress" in device) {
-        self.log(`${self.name  } is pinging `, device.ipAddress);
-
-        ping.sys.probe(device.ipAddress, isAlive => {
-          /* eslint-disable-next-line no-param-reassign */
-          device.online = isAlive;
-          self.log(`${self.name  } ping result: `, [device.name, device.online] );
-          if (device.online) {
-            discoveredDevices.push(device);
-          }
-          self.sendSocketNotification("IP_ADDRESS", device);
-        });
+      if (!("ipAddress" in device)) {
+        continue;
       }
-    });
+
+      // eslint-disable-next-line no-await-in-loop
+      const isAlive = await this.performPing(device.ipAddress);
+
+      device.online = isAlive;
+      this.sendSocketNotification("IP_ADDRESS", device);
+    }
   },
 
-  findDeviceByMacAddress (macAddress) {
+  findDeviceByMacAddress(macAddress) {
     // Find first device with matching macAddress
-    for (let i = 0; i < this.config.devices.length; i+=1) {
+    for (let i = 0; i < this.config.devices.length; i += 1) {
       const device = this.config.devices[i];
 
       if (Object.prototype.hasOwnProperty.call(device, "macAddress")) {
-        if (macAddress.toUpperCase() === device.macAddress.toUpperCase()){
-          this.log(`${this.name  } found device by MAC Address`, device);
+        if (macAddress.toUpperCase() === device.macAddress.toUpperCase()) {
+          this.log(`${this.name} found device by MAC Address`, device);
           return { ...device, macAddress: device.macAddress.toUpperCase() };
         }
       }
@@ -133,7 +156,7 @@ module.exports = NodeHelper.create({
 
     // Return macAddress (if showing unknown) or null
     if (this.config.showUnknown) {
-      return {macAddress, name: macAddress, icon: "question", type: "Unknown"};
+      return { macAddress, name: macAddress, icon: "question", type: "Unknown" };
     }
 
     return null;
