@@ -6,6 +6,7 @@
   "extends": ["plugin:mocha/recommended"],
   "rules": {
     "func-names": "off",
-    "no-underscore-dangle": "off"
+    "no-underscore-dangle": "off",
+    "mocha/no-top-level-hooks": "off"
   }
 }

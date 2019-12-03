@@ -1,3 +1,7 @@
+/**
+ * @prettier
+ */
+
 /*
  * Magic Mirror
  * Module: MMM-NetworkScanner
@@ -6,7 +10,6 @@
  * MIT Licensed.
  */
 
-/* @format prettier */
 /* global config, Log, Module, moment */
 /* eslint-env browser */
 
@@ -161,7 +164,7 @@ Module.register("MMM-NetworkScanner", {
       const combinedDevices = (this.networkDevices || []).concat(this.config.devices);
       let nextDevices = {};
 
-      for (let i = 0; i < combinedDevices.length; i+=1) {
+      for (let i = 0; i < combinedDevices.length; i += 1) {
         device = { ...combinedDevices[i] };
         const { lastSeen, macAddress } = device;
 
@@ -352,7 +355,9 @@ Module.register("MMM-NetworkScanner", {
   },
 
   scanNetwork() {
-    if (this.config.debug) Log.info(`${this.name} is initiating network scan`);
+    if (this.config.debug) {
+      Log.info(`${this.name} is initiating network scan`);
+    }
     const self = this;
     this.sendSocketNotification("SCAN_NETWORK");
     setInterval(() => {
@@ -362,7 +367,9 @@ Module.register("MMM-NetworkScanner", {
 
   updateDeviceStatus(device, online) {
     if (device) {
-      if (this.config.debug) Log.info(`${this.name} is updating device status.`, [device.name, online]);
+      if (this.config.debug) {
+        Log.info(`${this.name} is updating device status.`, [device.name, online]);
+      }
       // Last Seen
       if (online) {
         /* eslint-disable-next-line no-param-reassign */
@@ -373,7 +380,8 @@ Module.register("MMM-NetworkScanner", {
       const isStale = sinceLastSeen >= this.config.keepAlive;
       /* eslint-disable-next-line no-param-reassign */
       device.online = sinceLastSeen != null && !isStale;
-      if (this.config.debug) Log.info(`${this.name} ${device.name} is ${online ? "online" : "offline"}`);
+      if (this.config.debug)
+        Log.info(`${this.name} ${device.name} is ${online ? "online" : "offline"}`);
     }
   },
 });
