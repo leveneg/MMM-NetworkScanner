@@ -16,7 +16,7 @@ jobs:
       with:
         repository: MichMich/MagicMirror
         ref: refs/heads/master
-    - run: npm install express
+    - run: npm install express moment
     - uses: actions/checkout@v2-beta
       with:
         path: modules/MMM-NetworkScanner
